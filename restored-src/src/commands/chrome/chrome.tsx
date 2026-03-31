@@ -186,7 +186,7 @@ function ClaudeInChromeMenu(t0) {
   } else {
     options = $[8];
   }
-  const isDisabled = isWSL || true && !isClaudeAISubscriber;
+  const isDisabled = isWSL || !isClaudeAISubscriber;
   let t5;
   if ($[18] !== onDone) {
     t5 = () => onDone();

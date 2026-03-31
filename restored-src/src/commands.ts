@@ -704,7 +704,7 @@ export function hasCommand(commandName: string, commands: Command[]): boolean {
 export function getCommand(commandName: string, commands: Command[]): Command {
   const command = findCommand(commandName, commands)
   if (!command) {
-    throw ReferenceError(
+    throw new ReferenceError(
       `Command ${commandName} not found. Available commands: ${commands
         .map(_ => {
           const name = getCommandName(_)
