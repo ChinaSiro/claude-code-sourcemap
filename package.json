@@ -1,0 +1,18 @@
+{
+  "name": "claude-code-sourcemap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Research workspace for the reconstructed Claude Code 2.1.88 package and extracted sources.",
+  "scripts": {
+    "extract": "node extract-sources.js",
+    "claude": "node package/cli.js",
+    "start": "node package/cli.js",
+    "version:claude": "node package/cli.js -v",
+    "restored:cli": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx",
+    "restored:help": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx --help",
+    "restored:version": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx -v"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

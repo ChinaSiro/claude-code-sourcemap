@@ -1,4 +1,3 @@
-const { SourceMapConsumer } = require('source-map');
 const fs = require('fs');
 const path = require('path');
 

@@ -1,8 +1,9 @@
-// This file represents useful wrappers over node:child_process
-// These wrappers ease error handling and cross-platform compatbility
-// By using execa, Windows automatically gets shell escaping + BAT / CMD handling
+// This file represents useful wrappers over node:child_process.
+// It intentionally avoids shell semantics by default: callers pass an
+// executable plus argv, so spawning the file directly is both safer and more
+// predictable than routing through cross-spawn/cmd.exe.
 
-import { type ExecaError, execa } from 'execa'
+import { spawn } from 'child_process'
 import { getCwd } from '../utils/cwd.js'
 import { logError } from './log.js'
 
@@ -106,45 +107,123 @@ export function execFileNoThrowWithCwd(
   },
 ): Promise<{ stdout: string; stderr: string; code: number; error?: string }> {
   return new Promise(resolve => {
-    // Use execa for cross-platform .bat/.cmd compatibility on Windows
-    execa(file, args, {
-      maxBuffer,
-      signal: abortSignal,
-      timeout: finalTimeout,
-      cwd: finalCwd,
-      env: finalEnv,
-      shell,
-      stdin: finalStdin,
-      input: finalInput,
-      reject: false, // Don't throw on non-zero exit codes
+    const stdinMode = finalInput !== undefined ? 'pipe' : (finalStdin ?? 'pipe')
+    let child
+    try {
+      child = spawn(file, args, {
+        cwd: finalCwd,
+        env: finalEnv,
+        shell,
+        signal: abortSignal,
+        stdio: [stdinMode, 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+    } catch (error) {
+      logError(error)
+      resolve({
+        stdout: '',
+        stderr: '',
+        code: 1,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return
+    }
+
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let timedOut = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const finish = (result: {
+      stdout: string
+      stderr: string
+      code: number
+      error?: string
+    }) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(result)
+    }
+
+    const appendChunk = (
+      current: string,
+      chunk: Buffer | string,
+    ): { next: string; overflowed: boolean } => {
+      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
+      if (maxBuffer === undefined) {
+        return { next: current + text, overflowed: false }
+      }
+      const next = current + text
+      if (next.length <= maxBuffer) {
+        return { next, overflowed: false }
+      }
+      return {
+        next: next.slice(0, maxBuffer),
+        overflowed: true,
+      }
+    }
+
+    child.stdout?.on('data', chunk => {
+      const result = appendChunk(stdout, chunk)
+      stdout = result.next
+      if (result.overflowed) {
+        child.kill()
+      }
     })
-      .then(result => {
-        if (result.failed) {
-          if (finalPreserveOutput) {
-            const errorCode = result.exitCode ?? 1
-            void resolve({
-              stdout: result.stdout || '',
-              stderr: result.stderr || '',
-              code: errorCode,
-              error: getErrorMessage(
-                result as unknown as ExecaResultWithError,
-                errorCode,
-              ),
-            })
-          } else {
-            void resolve({ stdout: '', stderr: '', code: result.exitCode ?? 1 })
-          }
-        } else {
-          void resolve({
-            stdout: result.stdout,
-            stderr: result.stderr,
-            code: 0,
-          })
-        }
+
+    child.stderr?.on('data', chunk => {
+      const result = appendChunk(stderr, chunk)
+      stderr = result.next
+      if (result.overflowed) {
+        child.kill()
+      }
+    })
+
+    child.on('error', error => {
+      logError(error)
+      finish({ stdout: '', stderr: '', code: 1, error: error.message })
+    })
+
+    child.on('close', (code, signal) => {
+      const exitCode = typeof code === 'number' ? code : 1
+      if (exitCode === 0 && !signal && !timedOut) {
+        finish({ stdout, stderr, code: 0 })
+        return
+      }
+
+      const output = finalPreserveOutput ? { stdout, stderr } : { stdout: '', stderr: '' }
+      const signalName = typeof signal === 'string' ? signal : undefined
+      finish({
+        ...output,
+        code: exitCode,
+        error: timedOut
+          ? `timed out after ${finalTimeout}ms`
+          : getErrorMessage(
+              {
+                shortMessage:
+                  output.stderr.trim() || output.stdout.trim() || undefined,
+                signal: signalName,
+              },
+              exitCode,
+            ),
       })
-      .catch((error: ExecaError) => {
-        logError(error)
-        void resolve({ stdout: '', stderr: '', code: 1 })
-      })
+    })
+
+    if (finalInput !== undefined && child.stdin) {
+      child.stdin.end(finalInput)
+    }
+
+    if (stdinMode === 'ignore') {
+      child.stdin?.end()
+    }
+
+    if (finalTimeout !== undefined && finalTimeout > 0) {
+      timer = setTimeout(() => {
+        timedOut = true
+        child.kill()
+      }, finalTimeout)
+    }
   })
 }

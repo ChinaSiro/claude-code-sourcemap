@@ -1,4 +1,5 @@
-import { type StructuredPatchHunk, structuredPatch } from 'diff'
+import type { StructuredPatchHunk } from 'diff'
+import { structuredPatch } from 'diff/libesm/patch/create.js'
 import { logEvent } from 'src/services/analytics/index.js'
 import { getLocCounter } from '../bootstrap/state.js'
 import { addToTotalLinesChanged } from '../cost-tracker.js'

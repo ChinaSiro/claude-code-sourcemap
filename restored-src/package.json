@@ -1,0 +1,11 @@
+{
+  "name": "claude-code-restored-src",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "bootstrap:manifests": "node ./scripts/synthesize-node-module-manifests.cjs",
+    "version:claude": "bun --preload ./macro-shim.cjs src/entrypoints/cli.tsx -v",
+    "help": "bun --preload ./macro-shim.cjs src/entrypoints/cli.tsx --help"
+  }
+}

@@ -1,5 +1,5 @@
 import { createHash, type UUID } from 'crypto'
-import { diffLines } from 'diff'
+import { diffLines } from 'diff/libesm/diff/line.js'
 import type { Stats } from 'fs'
 import {
   chmod,
