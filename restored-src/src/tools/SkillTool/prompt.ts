@@ -1,4 +1,4 @@
-import { memoize } from 'lodash-es'
+import memoize from 'lodash-es/memoize.js'
 import type { Command } from 'src/commands.js'
 import {
   getCommandName,

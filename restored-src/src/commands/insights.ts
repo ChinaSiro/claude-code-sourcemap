@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process'
-import { diffLines } from 'diff'
+import { diffLines } from 'diff/libesm/diff/line.js'
 import { constants as fsConstants } from 'fs'
 import {
   copyFile,

@@ -2610,8 +2610,10 @@ async function run(): Promise<CommanderCommand> {
       // rejection — this just prevents the spurious global handler fire.
       sessionStartHooksPromise?.catch(() => {});
       profileCheckpoint('before_validateForceLoginOrg');
+      logForDebugging('[print-main] before validateForceLoginOrg');
       // Validate org restriction for non-interactive sessions
       const orgValidation = await validateForceLoginOrg();
+      logForDebugging(`[print-main] after validateForceLoginOrg valid=${orgValidation.valid}`);
       if (!orgValidation.valid) {
         process.stderr.write(orgValidation.message + '\n');
         process.exit(1);
@@ -2651,6 +2653,7 @@ async function run(): Promise<CommanderCommand> {
 
       // Init app state
       const headlessStore = createStore(headlessInitialState, onChangeAppState);
+      logForDebugging('[print-main] headlessStore created');
 
       // Check if bypassPermissions should be disabled based on Statsig gate
       // This runs in parallel to the code below, to avoid blocking the main loop.
@@ -2726,8 +2729,12 @@ async function run(): Promise<CommanderCommand> {
       // fetch was kicked off early (line ~2558) so only residual time blocks
       // here. --bare skips claude.ai entirely for perf-sensitive scripts.
       profileCheckpoint('before_connectMcp');
+      logForDebugging(
+        `[print-main] before connectMcp regular=${Object.keys(regularMcpConfigs).length}`,
+      );
       await connectMcpBatch(regularMcpConfigs, 'regular');
       profileCheckpoint('after_connectMcp');
+      logForDebugging('[print-main] after connectMcp');
       // Dedup: suppress plugin MCP servers that duplicate a claude.ai
       // connector (connector wins), then connect claude.ai servers.
       // Bounded wait — #23725 made this blocking so single-turn -p sees
@@ -2822,10 +2829,12 @@ async function run(): Promise<CommanderCommand> {
       }
       logSessionTelemetry();
       profileCheckpoint('before_print_import');
+      logForDebugging('[print-main] before print import');
       const {
         runHeadless
       } = await import('src/cli/print.js');
       profileCheckpoint('after_print_import');
+      logForDebugging('[print-main] after print import');
       void runHeadless(inputPrompt, () => headlessStore.getState(), headlessStore.setState, commandsHeadless, tools, sdkMcpConfigs, agentDefinitions.activeAgents, {
         continue: options.continue,
         resume: options.resume,
@@ -3795,6 +3804,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
       const initialMessages = deepLinkBanner ? [deepLinkBanner, ...hookMessages] : hookMessages.length > 0 ? hookMessages : undefined;
+      logForDebugging('[repl] before launchRepl fresh-session');
       await launchRepl(root, {
         getFpsMetrics,
         stats,

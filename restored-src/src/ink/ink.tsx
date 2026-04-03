@@ -98,6 +98,8 @@ export default class Ink {
   private currentNode: ReactNode = null;
   private frontFrame: Frame;
   private backFrame: Frame;
+  private hasRenderedFrame = false;
+  private firstRenderFallbackTimer: ReturnType<typeof setTimeout> | null = null;
   private lastPoolResetTime = performance.now();
   private drainTimer: ReturnType<typeof setTimeout> | null = null;
   private lastYogaCounters: {
@@ -420,6 +422,11 @@ export default class Ink {
   onRender() {
     if (this.isUnmounted || this.isPaused) {
       return;
+    }
+    this.hasRenderedFrame = true;
+    if (this.firstRenderFallbackTimer !== null) {
+      clearTimeout(this.firstRenderFallbackTimer);
+      this.firstRenderFallbackTimer = null;
     }
     // Entering a render cancels any pending drain tick — this render will
     // handle the drain (and re-schedule below if needed). Prevents a
@@ -1441,6 +1448,11 @@ export default class Ink {
   };
   render(node: ReactNode): void {
     this.currentNode = node;
+    this.hasRenderedFrame = false;
+    if (this.firstRenderFallbackTimer !== null) {
+      clearTimeout(this.firstRenderFallbackTimer);
+      this.firstRenderFallbackTimer = null;
+    }
     const tree = <App stdin={this.options.stdin} stdout={this.options.stdout} stderr={this.options.stderr} exitOnCtrlC={this.options.exitOnCtrlC} onExit={this.unmount} terminalColumns={this.terminalColumns} terminalRows={this.terminalRows} selection={this.selection} onSelectionChange={this.notifySelectionChange} onClickAt={this.dispatchClick} onHoverAt={this.dispatchHover} getHyperlinkAt={this.getHyperlinkAt} onOpenHyperlink={this.openHyperlink} onMultiClick={this.handleMultiClick} onSelectionDrag={this.handleSelectionDrag} onStdinResume={this.reassertTerminalModes} onCursorDeclaration={this.setCursorDeclaration} dispatchKeyboardEvent={this.dispatchKeyboardEvent}>
         <TerminalWriteProvider value={this.writeRaw}>
           {node}
@@ -1451,6 +1463,19 @@ export default class Ink {
     reconciler.updateContainerSync(tree, this.container, null, noop);
     // @ts-expect-error flushSyncWork exists in react-reconciler but not in @types/react-reconciler
     reconciler.flushSyncWork();
+    queueMicrotask(() => {
+      if (!this.hasRenderedFrame && !this.isUnmounted && !this.isPaused) {
+        logForDebugging('[repl] forcing first onRender fallback');
+        this.onRender();
+      }
+    });
+    this.firstRenderFallbackTimer = setTimeout(() => {
+      this.firstRenderFallbackTimer = null;
+      if (!this.hasRenderedFrame && !this.isUnmounted && !this.isPaused) {
+        logForDebugging('[repl] forcing timed first onRender fallback');
+        this.onRender();
+      }
+    }, 50);
   }
   unmount(error?: Error | number | null): void {
     if (this.isUnmounted) {

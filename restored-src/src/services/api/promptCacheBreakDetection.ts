@@ -1,6 +1,6 @@
 import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
-import { createPatch } from 'diff'
+import { createPatch } from 'diff/libesm/patch/create.js'
 import { mkdir, writeFile } from 'fs/promises'
 import { join } from 'path'
 import type { AgentId } from 'src/types/ids.js'

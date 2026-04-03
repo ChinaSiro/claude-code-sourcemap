@@ -9,7 +9,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from '@opentelemetry/semantic-conventions'
 import { randomUUID } from 'crypto'
-import { isEqual } from 'lodash-es'
+import isEqual from 'lodash-es/isEqual.js'
 import { getOrCreateUserID } from '../../utils/config.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { logError } from '../../utils/log.js'

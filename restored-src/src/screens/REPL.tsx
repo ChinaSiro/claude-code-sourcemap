@@ -612,6 +612,9 @@ export function REPL({
     logForDebugging(`[REPL:mount] REPL mounted, disabled=${disabled}`);
     return () => logForDebugging(`[REPL:unmount] REPL unmounting`);
   }, [disabled]);
+  useEffect(() => {
+    logForDebugging(`[repl] env fullscreen=${isFullscreenEnvEnabled()} USER_TYPE=${process.env.USER_TYPE ?? 'unset'} NO_FLICKER=${process.env.CLAUDE_CODE_NO_FLICKER ?? 'unset'} DISABLE_VIRTUAL_SCROLL=${process.env.CLAUDE_CODE_DISABLE_VIRTUAL_SCROLL ?? 'unset'} stdoutTTY=${process.stdout.isTTY} rows=${process.stdout.rows ?? 0} cols=${process.stdout.columns ?? 0}`);
+  }, []);
 
   // Agent definition is state so /resume can update it mid-session
   const [mainThreadAgentDefinition, setMainThreadAgentDefinition] = useState(initialMainThreadAgentDefinition);

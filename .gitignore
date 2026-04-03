@@ -1,0 +1,8 @@
+restored-src/.claude-sandbox/
+restored-src/.claude-verify/
+restored-src/.claude-debug-repro/
+restored-src/.claude-debug-repro2/
+restored-src/tmp-debug*.log
+restored-src/print-debug*.log
+restored-src/ui-debug.log
+restored-src/ui-debug*.log

@@ -22,7 +22,7 @@ import {
 } from '@anthropic-ai/sandbox-runtime'
 import { rmSync, statSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { memoize } from 'lodash-es'
+import memoize from 'lodash-es/memoize.js'
 import { join, resolve, sep } from 'path'
 import {
   getAdditionalDirectoriesForClaudeMd,

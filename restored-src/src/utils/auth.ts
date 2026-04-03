@@ -98,6 +98,10 @@ function isManagedOAuthContext(): boolean {
 /** Whether we are supporting direct 1P auth. */
 // this code is closely related to getAuthTokenSource
 export function isAnthropicAuthEnabled(): boolean {
+  if (getAPIProvider() !== 'firstParty') {
+    return false
+  }
+
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false
 
@@ -111,11 +115,6 @@ export function isAnthropicAuthEnabled(): boolean {
   if (process.env.ANTHROPIC_UNIX_SOCKET) {
     return !!process.env.CLAUDE_CODE_OAUTH_TOKEN
   }
-
-  const is3P =
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
 
   // Check if user has configured an external API key source
   // This allows externally-provided API keys to work (without requiring proxy configuration)
@@ -141,7 +140,6 @@ export function isAnthropicAuthEnabled(): boolean {
   // e.g. if they want to set X-Api-Key to a gateway key but use Anthropic OAuth for the Authorization
   // if we get reports of that, we should probably add an env var to force OAuth enablement
   const shouldDisableAuth =
-    is3P ||
     (hasExternalAuthToken && !isManagedOAuthContext()) ||
     (hasExternalApiKey && !isManagedOAuthContext())
 
@@ -155,6 +153,13 @@ export function getAuthTokenSource() {
   // bearer-token-shaped source allowed. OAuth env vars, FD tokens, and
   // keychain are ignored.
   if (isBareMode()) {
+    if (
+      getAPIProvider() === 'custom' &&
+      process.env.ANTHROPIC_AUTH_TOKEN &&
+      !isManagedOAuthContext()
+    ) {
+      return { source: 'ANTHROPIC_AUTH_TOKEN' as const, hasToken: true }
+    }
     if (getConfiguredApiKeyHelper()) {
       return { source: 'apiKeyHelper' as const, hasToken: true }
     }
@@ -1584,18 +1589,9 @@ export function hasProfileScope(): boolean {
 }
 
 export function is1PApiCustomer(): boolean {
-  // 1P API customers are users who are NOT:
-  // 1. Claude.ai subscribers (Max, Pro, Enterprise, Team)
-  // 2. Vertex AI users
-  // 3. AWS Bedrock users
-  // 4. Foundry users
-
-  // Exclude Vertex, Bedrock, and Foundry customers
-  if (
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-  ) {
+  // 1P API customers are users on Anthropic's first-party API who are not
+  // Claude.ai subscribers.
+  if (getAPIProvider() !== 'firstParty') {
     return false
   }
 
@@ -1728,12 +1724,11 @@ export function getSubscriptionName(): string {
   }
 }
 
-/** Check if using third-party services (Bedrock or Vertex or Foundry) */
+/** Check if using cloud-managed third-party services (Bedrock, Vertex, Foundry). */
 export function isUsing3PServices(): boolean {
-  return !!(
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+  const provider = getAPIProvider()
+  return (
+    provider === 'bedrock' || provider === 'vertex' || provider === 'foundry'
   )
 }
 

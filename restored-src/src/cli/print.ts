@@ -2136,6 +2136,13 @@ function runHeadlessStreaming(
             : undefined
 
           headlessProfilerCheckpoint('before_ask')
+          logForDebugging(
+            `[print] starting ask promptType=${typeof input} promptLength=${
+              typeof input === 'string' ? input.length : input.length
+            } outputFormat=${options.outputFormat ?? 'text'} model=${
+              activeUserSpecifiedModel ?? 'default'
+            }`,
+          )
           startQueryProfile()
           // Per-iteration ALS context so bg agents spawned inside ask()
           // inherit workload across their detached awaits. In-process cron
@@ -2144,6 +2151,7 @@ function runHeadlessStreaming(
           // inside the closure.
           const cmd = command
           await runWithWorkload(cmd.workload ?? options.workload, async () => {
+            let sawFirstMessage = false
             for await (const message of ask({
               commands: uniqBy(
                 [...currentCommands, ...appState.mcp.commands],
@@ -2208,6 +2216,17 @@ function runHeadlessStreaming(
                 })
               },
             })) {
+              if (!sawFirstMessage) {
+                sawFirstMessage = true
+                logForDebugging(
+                  `[print] first ask message type=${message.type}${
+                    'subtype' in message &&
+                    typeof message.subtype === 'string'
+                      ? ` subtype=${message.subtype}`
+                      : ''
+                  }`,
+                )
+              }
               // Forward messages to bridge incrementally (mid-turn) so
               // claude.ai sees progress and the connection stays alive
               // while blocked on permission requests.
@@ -2243,6 +2262,9 @@ function runHeadlessStreaming(
                 output.enqueue(message)
               }
             }
+            logForDebugging(
+              `[print] ask loop completed firstMessage=${sawFirstMessage}`,
+            )
           }) // end runWithWorkload
 
           for (const uuid of batchUuids) {

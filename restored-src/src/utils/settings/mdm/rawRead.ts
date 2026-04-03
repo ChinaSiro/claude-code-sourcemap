@@ -34,15 +34,21 @@ function execFilePromise(
   args: string[],
 ): Promise<{ stdout: string; code: number | null }> {
   return new Promise(resolve => {
-    execFile(
-      cmd,
-      args,
-      { encoding: 'utf-8', timeout: MDM_SUBPROCESS_TIMEOUT_MS },
-      (err, stdout) => {
-        // biome-ignore lint/nursery/noFloatingPromises: resolve() is not a floating promise
-        resolve({ stdout: stdout ?? '', code: err ? 1 : 0 })
-      },
-    )
+    try {
+      execFile(
+        cmd,
+        args,
+        { encoding: 'utf-8', timeout: MDM_SUBPROCESS_TIMEOUT_MS },
+        (err, stdout) => {
+          // biome-ignore lint/nursery/noFloatingPromises: resolve() is not a floating promise
+          resolve({ stdout: stdout ?? '', code: err ? 1 : 0 })
+        },
+      )
+    } catch {
+      // Fail open: MDM startup probes must never block the CLI if the host
+      // forbids spawning platform helpers such as `reg`/`plutil`.
+      resolve({ stdout: '', code: 1 })
+    }
   })
 }
 

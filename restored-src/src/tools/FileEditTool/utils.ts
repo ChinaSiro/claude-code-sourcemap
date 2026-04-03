@@ -1,4 +1,5 @@
-import { type StructuredPatchHunk, structuredPatch } from 'diff'
+import type { StructuredPatchHunk } from 'diff'
+import { structuredPatch } from 'diff/libesm/patch/create.js'
 import { logError } from 'src/utils/log.js'
 import { expandPath } from 'src/utils/path.js'
 import { countCharInString } from 'src/utils/stringUtils.js'

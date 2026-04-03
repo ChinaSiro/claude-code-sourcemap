@@ -1,5 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
-import { diffWordsWithSpace, type StructuredPatchHunk } from 'diff';
+import type { StructuredPatchHunk } from 'diff';
+import { diffWordsWithSpace } from 'diff/libesm/diff/word.js';
 import * as React from 'react';
 import { useMemo } from 'react';
 import type { ThemeName } from 'src/utils/theme.js';
