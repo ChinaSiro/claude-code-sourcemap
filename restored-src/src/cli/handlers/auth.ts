@@ -35,7 +35,10 @@ import { logForDebugging } from '../../utils/debug.js'
 import { isRunningOnHomespace } from '../../utils/envUtils.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import {
+  getAPIProvider,
+  getAPIProviderDisplayName,
+} from '../../utils/model/providers.js'
 import { getInitialSettings } from '../../utils/settings/settings.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import {
@@ -120,6 +123,15 @@ export async function authLogin({
   console?: boolean
   claudeai?: boolean
 }): Promise<void> {
+  const apiProvider = getAPIProvider()
+  if (apiProvider !== 'firstParty') {
+    process.stderr.write(
+      `claude auth login is only available for the Anthropic API. Current provider: ${getAPIProviderDisplayName(apiProvider)}.\n` +
+        `Configure external credentials for your ${getAPIProviderDisplayName(apiProvider)} deployment instead.\n`,
+    )
+    process.exit(1)
+  }
+
   if (useConsole && claudeai) {
     process.stderr.write(
       'Error: --console and --claudeai cannot be used together.\n',
@@ -233,15 +245,15 @@ export async function authStatus(opts: {
   json?: boolean
   text?: boolean
 }): Promise<void> {
+  const apiProvider = getAPIProvider()
   const { source: authTokenSource, hasToken } = getAuthTokenSource()
   const { source: apiKeySource } = getAnthropicApiKeyWithSource()
   const hasApiKeyEnvVar =
     !!process.env.ANTHROPIC_API_KEY && !isRunningOnHomespace()
-  const oauthAccount = getOauthAccountInfo()
-  const subscriptionType = getSubscriptionType()
   const using3P = isUsing3PServices()
-  const loggedIn =
-    hasToken || apiKeySource !== 'none' || hasApiKeyEnvVar || using3P
+  const hasCustomApiCredentials =
+    hasToken || apiKeySource !== 'none' || hasApiKeyEnvVar
+  const loggedIn = using3P ? true : hasCustomApiCredentials
 
   // Determine auth method
   let authMethod: string = 'none'
@@ -286,12 +298,19 @@ export async function authStatus(opts: {
       process.stdout.write('API key: ANTHROPIC_API_KEY\n')
     }
     if (!loggedIn) {
-      process.stdout.write(
-        'Not logged in. Run claude auth login to authenticate.\n',
-      )
+      if (apiProvider === 'firstParty') {
+        process.stdout.write(
+          'Not logged in. Run claude auth login to authenticate.\n',
+        )
+      } else {
+        process.stdout.write(
+          `No external credentials detected for ${getAPIProviderDisplayName(apiProvider)}. Configure ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or apiKeyHelper.\n`,
+        )
+      }
     }
   } else {
-    const apiProvider = getAPIProvider()
+    const oauthAccount = getOauthAccountInfo()
+    const subscriptionType = getSubscriptionType()
     const resolvedApiKeySource =
       apiKeySource !== 'none'
         ? apiKeySource
@@ -325,6 +344,6 @@ export async function authLogout(): Promise<void> {
     process.stderr.write('Failed to log out.\n')
     process.exit(1)
   }
-  process.stdout.write('Successfully logged out from your Anthropic account.\n')
+  process.stdout.write('Successfully cleared saved authentication.\n')
   process.exit(0)
 }

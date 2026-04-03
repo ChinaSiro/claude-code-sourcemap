@@ -10,7 +10,7 @@
     "version:claude": "node package/cli.js -v",
     "restored:cli": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx",
     "restored:help": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx --help",
-    "restored:version": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx -v"
+    "restored:version": "bun --preload ./restored-src/macro-shim.cjs ./restored-src/src/entrypoints/cli.tsx --version"
   },
   "engines": {
     "node": ">=18.0.0"

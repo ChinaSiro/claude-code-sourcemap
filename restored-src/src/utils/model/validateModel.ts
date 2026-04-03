@@ -1,7 +1,7 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import { MODEL_ALIASES } from './aliases.js'
 import { isModelAllowed } from './modelAllowlist.js'
-import { getAPIProvider } from './providers.js'
+import { isAnthropicCompatibleProvider } from './providers.js'
 import { sideQuery } from '../sideQuery.js'
 import {
   NotFoundError,
@@ -142,7 +142,7 @@ function handleValidationError(
  * Suggest a fallback model for 3P users when the selected model is unavailable.
  */
 function get3PFallbackSuggestion(model: string): string | undefined {
-  if (getAPIProvider() === 'firstParty') {
+  if (isAnthropicCompatibleProvider()) {
     return undefined
   }
   const lowerModel = model.toLowerCase()

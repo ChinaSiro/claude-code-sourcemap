@@ -19,12 +19,14 @@ import { AppStateProvider } from './state/AppState.js';
 import { onChangeAppState } from './state/onChangeAppState.js';
 import { normalizeApiKeyForConfig } from './utils/authPortable.js';
 import { getExternalClaudeMdIncludes, getMemoryFiles, shouldShowClaudeMdExternalIncludesWarning } from './utils/claudemd.js';
-import { checkHasTrustDialogAccepted, getCustomApiKeyStatus, getGlobalConfig, saveGlobalConfig } from './utils/config.js';
+import { checkHasTrustDialogAccepted, getCustomApiKeyStatus, getGlobalConfig, saveCurrentProjectConfig, saveGlobalConfig } from './utils/config.js';
 import { updateDeepLinkTerminalPreference } from './utils/deepLink/terminalPreference.js';
 import { isEnvTruthy, isRunningOnHomespace } from './utils/envUtils.js';
 import { type FpsMetrics, FpsTracker } from './utils/fpsTracker.js';
 import { updateGithubRepoPathMapping } from './utils/githubRepoPathMapping.js';
 import { applyConfigEnvironmentVariables } from './utils/managedEnv.js';
+import { needsCustomApiSetup } from './utils/model/providers.js';
+import { logForDebugging } from './utils/debug.js';
 import type { PermissionMode } from './utils/permissions/PermissionMode.js';
 import { getBaseRenderOptions } from './utils/renderOptions.js';
 import { getSettingsWithAllErrors } from './utils/settings/allErrors.js';
@@ -96,9 +98,13 @@ export function showSetupDialog<T = void>(root: Root, renderer: (done: (result: 
  * Handles the common epilogue: start deferred prefetches, wait for exit, graceful shutdown.
  */
 export async function renderAndRun(root: Root, element: React.ReactNode): Promise<void> {
+  logForDebugging('[repl] renderAndRun start');
   root.render(element);
+  logForDebugging('[repl] root.render done');
   startDeferredPrefetches();
+  logForDebugging('[repl] deferred prefetches started');
   await root.waitUntilExit();
+  logForDebugging('[repl] root.waitUntilExit resolved');
   await gracefulShutdown(0);
 }
 export async function showSetupScreens(root: Root, permissionMode: PermissionMode, allowDangerouslySkipPermissions: boolean, commands?: Command[], claudeInChrome?: boolean, devChannels?: ChannelEntry[]): Promise<boolean> {
@@ -108,7 +114,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   }
   const config = getGlobalConfig();
   let onboardingShown = false;
-  if (!config.theme || !config.hasCompletedOnboarding // always show onboarding at least once
+  if (!config.theme || !config.hasCompletedOnboarding || needsCustomApiSetup() // always show onboarding at least once
   ) {
     onboardingShown = true;
     const {
@@ -129,14 +135,22 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   // Note: non-interactive sessions (CI/CD with -p) never reach showSetupScreens at all.
   // Skip permission checks in claubbit
   if (!isEnvTruthy(process.env.CLAUBBIT)) {
+    const shouldAutoTrustLocalSandbox = process.env.CLAUDE_CONFIG_DIR?.replaceAll('\\', '/').endsWith('/restored-src/.claude-sandbox') ?? false;
     // Fast-path: skip TrustDialog import+render when CWD is already trusted.
     // If it returns true, the TrustDialog would auto-resolve regardless of
     // security features, so we can skip the dynamic import and render cycle.
     if (!checkHasTrustDialogAccepted()) {
-      const {
-        TrustDialog
-      } = await import('./components/TrustDialog/TrustDialog.js');
-      await showSetupDialog(root, done => <TrustDialog commands={commands} onDone={done} />);
+      if (shouldAutoTrustLocalSandbox) {
+        saveCurrentProjectConfig(current => ({
+          ...current,
+          hasTrustDialogAccepted: true
+        }));
+      } else {
+        const {
+          TrustDialog
+        } = await import('./components/TrustDialog/TrustDialog.js');
+        await showSetupDialog(root, done => <TrustDialog commands={commands} onDone={done} />);
+      }
     }
 
     // Signal that trust has been verified for this session.
@@ -302,6 +316,7 @@ export function getRenderContext(exitOnCtrlC: boolean): {
   stats: StatsStore;
 } {
   let lastFlickerTime = 0;
+  let loggedFirstFrame = false;
   const baseOptions = getBaseRenderOptions(exitOnCtrlC);
 
   // Log analytics event when stdin override is active
@@ -323,6 +338,10 @@ export function getRenderContext(exitOnCtrlC: boolean): {
     renderOptions: {
       ...baseOptions,
       onFrame: event => {
+        if (!loggedFirstFrame) {
+          loggedFirstFrame = true;
+          logForDebugging(`[repl-frame] first frame duration=${Math.round(event.durationMs)}ms flickers=${event.flickers.length} stdoutTTY=${process.stdout.isTTY} rows=${process.stdout.rows ?? 0} cols=${process.stdout.columns ?? 0}`);
+        }
         fpsTracker.record(event.durationMs);
         stats.observe('frame_duration_ms', event.durationMs);
         if (frameTimingLogPath && event.phases) {

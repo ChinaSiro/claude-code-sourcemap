@@ -11,7 +11,7 @@ import { getDisplayPath } from './file.js';
 import { formatNumber } from './format.js';
 import { getIdeClientName, type IDEExtensionInstallationStatus, isJetBrainsIde, toIDEDisplayName } from './ide.js';
 import { getClaudeAiUserDefaultModelDescription, modelDisplayString } from './model/model.js';
-import { getAPIProvider } from './model/providers.js';
+import { getAPIProvider, getAPIProviderDisplayName } from './model/providers.js';
 import { getMTLSConfig } from './mtls.js';
 import { checkInstall } from './nativeInstaller/index.js';
 import { getProxyUrl } from './proxy.js';
@@ -241,21 +241,16 @@ export function buildAPIProviderProperties(): Property[] {
   const apiProvider = getAPIProvider();
   const properties: Property[] = [];
   if (apiProvider !== 'firstParty') {
-    const providerLabel = {
-      bedrock: 'AWS Bedrock',
-      vertex: 'Google Vertex AI',
-      foundry: 'Microsoft Foundry'
-    }[apiProvider];
     properties.push({
       label: 'API provider',
-      value: providerLabel
+      value: getAPIProviderDisplayName(apiProvider)
     });
   }
-  if (apiProvider === 'firstParty') {
+  if (apiProvider === 'firstParty' || apiProvider === 'custom') {
     const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
     if (anthropicBaseUrl) {
       properties.push({
-        label: 'Anthropic base URL',
+        label: apiProvider === 'custom' ? 'Custom API base URL' : 'Anthropic base URL',
         value: anthropicBaseUrl
       });
     }

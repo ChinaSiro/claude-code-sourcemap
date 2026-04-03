@@ -1,25 +1,21 @@
 import { c as _c } from "react/compiler-runtime";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
-import { setupTerminal, shouldOfferTerminalSetup } from '../commands/terminalSetup/terminalSetup.js';
 import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeybindings.js';
-import { Box, Link, Newline, Text, useTheme } from '../ink.js';
-import { useKeybindings } from '../keybindings/useKeybinding.js';
+import { Box, Text, useTheme } from '../ink.js';
 import { isAnthropicAuthEnabled } from '../utils/auth.js';
+import { logForDebugging } from '../utils/debug.js';
 import { normalizeApiKeyForConfig } from '../utils/authPortable.js';
 import { getCustomApiKeyStatus } from '../utils/config.js';
-import { env } from '../utils/env.js';
 import { isRunningOnHomespace } from '../utils/envUtils.js';
 import { PreflightStep } from '../utils/preflightChecks.js';
 import type { ThemeSetting } from '../utils/theme.js';
 import { ApproveApiKey } from './ApproveApiKey.js';
-import { ConsoleOAuthFlow } from './ConsoleOAuthFlow.js';
-import { Select } from './CustomSelect/select.js';
+import { CustomApiSetup } from './CustomApiSetup.js';
 import { WelcomeV2 } from './LogoV2/WelcomeV2.js';
-import { PressEnterToContinue } from './PressEnterToContinue.js';
 import { ThemePicker } from './ThemePicker.js';
-import { OrderedList } from './ui/OrderedList.js';
-type StepId = 'preflight' | 'theme' | 'oauth' | 'api-key' | 'security' | 'terminal-setup';
+import { needsCustomApiSetup } from '../utils/model/providers.js';
+type StepId = 'custom-api' | 'preflight' | 'theme' | 'api-key';
 interface OnboardingStep {
   id: StepId;
   component: React.ReactNode;
@@ -31,8 +27,8 @@ export function Onboarding({
   onDone
 }: Props): React.ReactNode {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [skipOAuth, setSkipOAuth] = useState(false);
   const [oauthEnabled] = useState(() => isAnthropicAuthEnabled());
+  const [shouldConfigureCustomApi] = useState(() => needsCustomApiSetup());
   const [theme, setTheme] = useTheme();
   useEffect(() => {
     logEvent('tengu_began_setup', {
@@ -62,37 +58,6 @@ export function Onboarding({
       <ThemePicker onThemeSelect={handleThemeSelection} showIntroText={true} helpText="To change this later, run /theme" hideEscToCancel={true} skipExitHandling={true} // Skip exit handling as Onboarding already handles it
     />
     </Box>;
-  const securityStep = <Box flexDirection="column" gap={1} paddingLeft={1}>
-      <Text bold>Security notes:</Text>
-      <Box flexDirection="column" width={70}>
-        {/**
-         * OrderedList misnumbers items when rendering conditionally,
-         * so put all items in the if/else
-         */}
-        <OrderedList>
-          <OrderedList.Item>
-            <Text>Claude can make mistakes</Text>
-            <Text dimColor wrap="wrap">
-              You should always review Claude&apos;s responses, especially when
-              <Newline />
-              running code.
-              <Newline />
-            </Text>
-          </OrderedList.Item>
-          <OrderedList.Item>
-            <Text>
-              Due to prompt injection risks, only use it with code you trust
-            </Text>
-            <Text dimColor wrap="wrap">
-              For more details see:
-              <Newline />
-              <Link url="https://code.claude.com/docs/en/security" />
-            </Text>
-          </OrderedList.Item>
-        </OrderedList>
-      </Box>
-      <PressEnterToContinue />
-    </Box>;
   const preflightStep = <PreflightStep onSuccess={goToNextStep} />;
   // Create the steps array - determine which steps to include based on reAuth and oauthEnabled
   const apiKeyNeedingApproval = useMemo(() => {
@@ -108,99 +73,56 @@ export function Onboarding({
     }
   }, []);
   function handleApiKeyDone(approved: boolean) {
-    if (approved) {
-      setSkipOAuth(true);
-    }
+    void approved;
     goToNextStep();
   }
-  const steps: OnboardingStep[] = [];
-  if (oauthEnabled) {
-    steps.push({
-      id: 'preflight',
-      component: preflightStep
+  const steps = useMemo(() => {
+    const nextSteps: OnboardingStep[] = [];
+    if (shouldConfigureCustomApi) {
+      nextSteps.push({
+        id: 'custom-api',
+        component: <CustomApiSetup onDone={goToNextStep} />
+      });
+    }
+    if (oauthEnabled) {
+      nextSteps.push({
+        id: 'preflight',
+        component: preflightStep
+      });
+    }
+    nextSteps.push({
+      id: 'theme',
+      component: themeStep
     });
-  }
-  steps.push({
-    id: 'theme',
-    component: themeStep
-  });
-  if (apiKeyNeedingApproval) {
-    steps.push({
-      id: 'api-key',
-      component: <ApproveApiKey customApiKeyTruncated={apiKeyNeedingApproval} onDone={handleApiKeyDone} />
-    });
-  }
-  if (oauthEnabled) {
-    steps.push({
-      id: 'oauth',
-      component: <SkippableStep skip={skipOAuth} onSkip={goToNextStep}>
-          <ConsoleOAuthFlow onDone={goToNextStep} />
-        </SkippableStep>
-    });
-  }
-  steps.push({
-    id: 'security',
-    component: securityStep
-  });
-  if (shouldOfferTerminalSetup()) {
-    steps.push({
-      id: 'terminal-setup',
-      component: <Box flexDirection="column" gap={1} paddingLeft={1}>
-          <Text bold>Use Claude Code&apos;s terminal setup?</Text>
-          <Box flexDirection="column" width={70} gap={1}>
-            <Text>
-              For the optimal coding experience, enable the recommended settings
-              <Newline />
-              for your terminal:{' '}
-              {env.terminal === 'Apple_Terminal' ? 'Option+Enter for newlines and visual bell' : 'Shift+Enter for newlines'}
-            </Text>
-            <Select options={[{
-            label: 'Yes, use recommended settings',
-            value: 'install'
-          }, {
-            label: 'No, maybe later with /terminal-setup',
-            value: 'no'
-          }]} onChange={value => {
-            if (value === 'install') {
-              // Errors already logged in setupTerminal, just swallow and proceed
-              void setupTerminal(theme).catch(() => {}).finally(goToNextStep);
-            } else {
-              goToNextStep();
-            }
-          }} onCancel={() => goToNextStep()} />
-            <Text dimColor>
-              {exitState.pending ? <>Press {exitState.keyName} again to exit</> : <>Enter to confirm · Esc to skip</>}
-            </Text>
-          </Box>
-        </Box>
-    });
-  }
+    if (apiKeyNeedingApproval) {
+      nextSteps.push({
+        id: 'api-key',
+        component: <ApproveApiKey customApiKeyTruncated={apiKeyNeedingApproval} onDone={handleApiKeyDone} />
+      });
+    }
+    return nextSteps;
+  }, [apiKeyNeedingApproval, goToNextStep, oauthEnabled, preflightStep, shouldConfigureCustomApi, themeStep]);
   const currentStep = steps[currentStepIndex];
-
-  // Handle Enter on security step and Escape on terminal-setup step
-  // Dependencies match what goToNextStep uses internally
-  const handleSecurityContinue = useCallback(() => {
-    if (currentStepIndex === steps.length - 1) {
+  useEffect(() => {
+    logForDebugging(`[onboarding] steps=${steps.map(step => step.id).join(',') || 'none'} index=${currentStepIndex} current=${currentStep?.id ?? 'none'} custom=${shouldConfigureCustomApi} oauth=${oauthEnabled}`);
+  }, [currentStep?.id, currentStepIndex, oauthEnabled, shouldConfigureCustomApi, steps]);
+  useEffect(() => {
+    if (steps.length === 0) {
+      logForDebugging('[onboarding] No steps available, completing onboarding', {
+        level: 'warn'
+      });
       onDone();
-    } else {
-      goToNextStep();
+      return;
     }
-  }, [currentStepIndex, steps.length, oauthEnabled, onDone]);
-  const handleTerminalSetupSkip = useCallback(() => {
-    goToNextStep();
-  }, [currentStepIndex, steps.length, oauthEnabled, onDone]);
-  useKeybindings({
-    'confirm:yes': handleSecurityContinue
-  }, {
-    context: 'Confirmation',
-    isActive: currentStep?.id === 'security'
-  });
-  useKeybindings({
-    'confirm:no': handleTerminalSetupSkip
-  }, {
-    context: 'Confirmation',
-    isActive: currentStep?.id === 'terminal-setup'
-  });
+    if (currentStepIndex >= steps.length) {
+      const nextIndex = steps.length - 1;
+      logForDebugging(`[onboarding] Clamping step index ${currentStepIndex} -> ${nextIndex} after step list changed`, {
+        level: 'warn'
+      });
+      setCurrentStepIndex(nextIndex);
+    }
+  }, [currentStepIndex, onDone, steps]);
+
   return <Box flexDirection="column">
       <WelcomeV2 />
       <Box flexDirection="column" marginTop={1}>

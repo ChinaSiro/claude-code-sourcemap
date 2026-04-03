@@ -31,6 +31,19 @@ export async function performLogout({
     const updated = {
       ...current
     };
+    updated.env = {
+      ...updated.env
+    };
+    delete updated.env.ANTHROPIC_BASE_URL;
+    delete updated.env.ANTHROPIC_API_KEY;
+    delete updated.env.ANTHROPIC_AUTH_TOKEN;
+    delete updated.env.ANTHROPIC_MODEL;
+    delete updated.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+    delete updated.env.API_TIMEOUT_MS;
+    delete updated.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
+    delete updated.env.CLAUDE_CODE_USE_BEDROCK;
+    delete updated.env.CLAUDE_CODE_USE_VERTEX;
+    delete updated.env.CLAUDE_CODE_USE_FOUNDRY;
     if (clearOnboarding) {
       updated.hasCompletedOnboarding = false;
       updated.subscriptionNoticeCount = 0;
@@ -45,6 +58,16 @@ export async function performLogout({
     updated.oauthAccount = undefined;
     return updated;
   });
+  delete process.env.ANTHROPIC_BASE_URL;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+  delete process.env.ANTHROPIC_MODEL;
+  delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL;
+  delete process.env.API_TIMEOUT_MS;
+  delete process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC;
+  delete process.env.CLAUDE_CODE_USE_BEDROCK;
+  delete process.env.CLAUDE_CODE_USE_VERTEX;
+  delete process.env.CLAUDE_CODE_USE_FOUNDRY;
 }
 
 // clearing anything memoized that must be invalidated when user/session/auth changes
@@ -73,7 +96,7 @@ export async function call(): Promise<React.ReactNode> {
   await performLogout({
     clearOnboarding: true
   });
-  const message = <Text>Successfully logged out from your Anthropic account.</Text>;
+  const message = <Text>Successfully cleared saved authentication.</Text>;
   setTimeout(() => {
     gracefulShutdownSync(0, 'logout');
   }, 200);

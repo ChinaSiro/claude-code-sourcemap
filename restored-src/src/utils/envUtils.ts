@@ -1,14 +1,34 @@
 import memoize from 'lodash-es/memoize.js'
+import { existsSync } from 'node:fs'
 import { homedir } from 'os'
 import { join } from 'path'
+
+function getDefaultClaudeConfigDir(): string {
+  const explicitConfigDir = process.env.CLAUDE_CONFIG_DIR
+  if (explicitConfigDir) {
+    return explicitConfigDir
+  }
+
+  const repoSandboxMarker = join(
+    process.cwd(),
+    'restored-src',
+    'src',
+    'entrypoints',
+    'cli.tsx',
+  )
+
+  if (existsSync(repoSandboxMarker)) {
+    return join(process.cwd(), 'restored-src', '.claude-sandbox')
+  }
+
+  return join(homedir(), '.claude')
+}
 
 // Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
 // tests that change the env var get a fresh value without explicit cache.clear.
 export const getClaudeConfigHomeDir = memoize(
   (): string => {
-    return (
-      process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
-    ).normalize('NFC')
+    return getDefaultClaudeConfigDir().normalize('NFC')
   },
   () => process.env.CLAUDE_CONFIG_DIR,
 )

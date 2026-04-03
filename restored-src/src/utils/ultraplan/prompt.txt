@@ -1,0 +1,7 @@
+Create a concise implementation plan for the user's request.
+
+Requirements:
+- Clarify assumptions and constraints.
+- Break the work into concrete, executable steps.
+- Call out risks, dependencies, and validation steps.
+- Keep the plan practical and directly tied to the current repository.
