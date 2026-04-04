@@ -1,0 +1,25 @@
+# Node.js dependencies
+node_modules/
+
+# Extraction output (re-creatable from extract-sources.js)
+# Uncomment the line below if you prefer not to track restored-src
+# restored-src/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
