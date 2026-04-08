@@ -78,6 +78,23 @@ const DEFAULT_BACKOFF: BackoffConfig = {
   generalGiveUpMs: 600_000, // 10 minutes
 }
 
+/**
+ * Centralized exit helper: attempt to flush analytics and telemetry,
+ * then exit. Keep `process.exit` in one audited location.
+ */
+async function exitWithFlush(code: number): Promise<never> {
+  try {
+    await Promise.race([
+      Promise.all([shutdown1PEventLogging(), shutdownDatadog()]),
+      sleep(500, undefined, { unref: true }),
+    ])
+  } catch {
+    // ignore shutdown errors
+  }
+  // eslint-disable-next-line custom-rules/no-process-exit
+  process.exit(code)
+}
+
 /** Status update interval for the live display (ms). */
 const STATUS_UPDATE_INTERVAL_MS = 1_000
 const SPAWN_SESSIONS_DEFAULT = 32
@@ -1988,7 +2005,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
     // biome-ignore lint/suspicious/noConsole: intentional error output
     console.error(`Error: ${parsed.error}`)
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   const {
@@ -2029,7 +2046,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
         `Error: Invalid permission mode '${permissionMode}'. Valid modes: ${valid.join(', ')}`,
       )
       // eslint-disable-next-line custom-rules/no-process-exit
-      process.exit(1)
+      await exitWithFlush(1)
     }
   }
 
@@ -2072,7 +2089,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
       'Error: Multi-session Remote Control is not enabled for your account yet.',
     )
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   // Set the bootstrap CWD so that trust checks, project config lookups, and
@@ -2089,7 +2106,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
       `Error: Workspace not trusted. Please run \`claude\` in ${dir} first to review and accept the workspace trust dialog.`,
     )
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   // Resolve auth
@@ -2104,7 +2121,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
     // biome-ignore lint/suspicious/noConsole:: intentional console output
     console.error(BRIDGE_LOGIN_ERROR)
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   // First-time remote dialog — explain what bridge does and get consent
@@ -2134,7 +2151,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
     })
     if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
       // eslint-disable-next-line custom-rules/no-process-exit
-      process.exit(0)
+      await exitWithFlush(0)
     }
   }
 
@@ -2157,7 +2174,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
         `Error: No recent session found in this directory or its worktrees. Run \`claude remote-control\` to start a new one.`,
       )
       // eslint-disable-next-line custom-rules/no-process-exit
-      process.exit(1)
+      await exitWithFlush(1)
     }
     const { pointer, dir: pointerDir } = found
     const ageMin = Math.round(pointer.ageMs / 60_000)
@@ -2189,7 +2206,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
       'Error: Remote Control base URL uses HTTP. Only HTTPS or localhost HTTP is allowed.',
     )
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   // Session ingress URL for WebSocket connections. In production this is the
@@ -2334,7 +2351,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
       `Error: Worktree mode requires a git repository or WorktreeCreate hooks configured. Use --spawn=session for single-session mode.`,
     )
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   const branch = await getBranch()
@@ -2369,7 +2386,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
         `Error: Invalid session ID "${resumeSessionId}". Session IDs must not contain unsafe characters.`,
       )
       // eslint-disable-next-line custom-rules/no-process-exit
-      process.exit(1)
+      await exitWithFlush(1)
     }
     // Proactively refresh the OAuth token — getBridgeSession uses raw axios
     // without the withOAuthRetry 401-refresh logic. An expired-but-present
@@ -2395,7 +2412,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
         `Error: Session ${resumeSessionId} not found. It may have been archived or expired, or your login may have lapsed (run \`claude /login\`).`,
       )
       // eslint-disable-next-line custom-rules/no-process-exit
-      process.exit(1)
+      await exitWithFlush(1)
     }
     if (!session.environment_id) {
       if (resumePointerDir) {
@@ -2407,7 +2424,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
         `Error: Session ${resumeSessionId} has no environment_id. It may never have been attached to a bridge.`,
       )
       // eslint-disable-next-line custom-rules/no-process-exit
-      process.exit(1)
+      await exitWithFlush(1)
     }
     reuseEnvironmentId = session.environment_id
     logForDebugging(
@@ -2463,7 +2480,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
         : `Error: ${errorMessage(err)}`,
     )
     // eslint-disable-next-line custom-rules/no-process-exit
-    process.exit(1)
+    await exitWithFlush(1)
   }
 
   // Tracks whether the --session-id resume flow completed successfully.
@@ -2539,7 +2556,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
             : `Error: Failed to reconnect session ${resumeSessionId}: ${errorMessage(err)}\nThe session may still be resumable — try running the same command again.`,
         )
         // eslint-disable-next-line custom-rules/no-process-exit
-        process.exit(1)
+        await exitWithFlush(1)
       }
     }
   }
@@ -2764,7 +2781,7 @@ export async function bridgeMain(args: string[]): Promise<void> {
   // The bridge bypasses init.ts (and its graceful shutdown handler), so we
   // must exit explicitly.
   // eslint-disable-next-line custom-rules/no-process-exit
-  process.exit(0)
+  await exitWithFlush(0)
 }
 
 // ─── Headless bridge (daemon worker) ────────────────────────────────────────
