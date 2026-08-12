@@ -100,6 +100,7 @@ import {
   extractQuotaStatusFromHeaders,
 } from '../claudeAiLimits.js'
 import { getAPIContextManagement } from '../compact/apiMicrocompact.js'
+import { normalizeMiniMaxVideoContent } from './minimaxVideoInput.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
@@ -591,14 +592,15 @@ export function userMessageToMessageParam(
   enablePromptCaching: boolean,
   querySource?: QuerySource,
 ): MessageParam {
+  const content = normalizeMiniMaxVideoContent(message.message.content)
   if (addCache) {
-    if (typeof message.message.content === 'string') {
+    if (typeof content === 'string') {
       return {
         role: 'user',
         content: [
           {
             type: 'text',
-            text: message.message.content,
+            text: content,
             ...(enablePromptCaching && {
               cache_control: getCacheControl({ querySource }),
             }),
@@ -608,9 +610,9 @@ export function userMessageToMessageParam(
     } else {
       return {
         role: 'user',
-        content: message.message.content.map((_, i) => ({
+        content: content.map((_, i) => ({
           ..._,
-          ...(i === message.message.content.length - 1
+          ...(i === content.length - 1
             ? enablePromptCaching
               ? { cache_control: getCacheControl({ querySource }) }
               : {}
@@ -624,9 +626,7 @@ export function userMessageToMessageParam(
   // to addCacheBreakpoints share the same array and each splices in duplicate cache_edits.
   return {
     role: 'user',
-    content: Array.isArray(message.message.content)
-      ? [...message.message.content]
-      : message.message.content,
+    content: Array.isArray(content) ? [...content] : content,
   }
 }
 
