@@ -244,7 +244,8 @@ export function buildAPIProviderProperties(): Property[] {
     const providerLabel = {
       bedrock: 'AWS Bedrock',
       vertex: 'Google Vertex AI',
-      foundry: 'Microsoft Foundry'
+      foundry: 'Microsoft Foundry',
+      minimax: 'MiniMax'
     }[apiProvider];
     properties.push({
       label: 'API provider',
@@ -257,6 +258,14 @@ export function buildAPIProviderProperties(): Property[] {
       properties.push({
         label: 'Anthropic base URL',
         value: anthropicBaseUrl
+      });
+    }
+  } else if (apiProvider === 'minimax') {
+    const miniMaxBaseUrl = process.env.ANTHROPIC_BASE_URL;
+    if (miniMaxBaseUrl) {
+      properties.push({
+        label: 'MiniMax base URL',
+        value: miniMaxBaseUrl
       });
     }
   } else if (apiProvider === 'bedrock') {

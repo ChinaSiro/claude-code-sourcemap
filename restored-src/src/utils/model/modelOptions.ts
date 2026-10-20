@@ -6,6 +6,7 @@ import {
   isTeamPremiumSubscriber,
 } from '../auth.js'
 import { getModelStrings } from './modelStrings.js'
+import { MINIMAX_MODEL_IDS } from './configs.js'
 import {
   COST_TIER_3_15,
   COST_HAIKU_35,
@@ -51,6 +52,18 @@ export function getDefaultOptionForUser(fastMode = false): ModelOption {
       value: null,
       label: 'Default (recommended)',
       description: `Use the default model for Ants (currently ${currentModel})`,
+      descriptionForModel: `Default model (currently ${currentModel})`,
+    }
+  }
+
+  if (getAPIProvider() === 'minimax') {
+    const currentModel = renderDefaultModelSetting(
+      getDefaultMainLoopModelSetting(),
+    )
+    return {
+      value: null,
+      label: 'Default (recommended)',
+      description: `Use the default model (currently ${currentModel})`,
       descriptionForModel: `Default model (currently ${currentModel})`,
     }
   }
@@ -287,6 +300,17 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     ]
   }
 
+  if (getAPIProvider() === 'minimax') {
+    return [
+      getDefaultOptionForUser(fastMode),
+      ...MINIMAX_MODEL_IDS.map(model => ({
+        value: model,
+        label: model,
+        description: model,
+      })),
+    ]
+  }
+
   if (isClaudeAISubscriber()) {
     if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
       // Max and Team Premium users: Opus is default, show Sonnet as alternative
@@ -478,6 +502,16 @@ export function getModelOptions(fastMode = false): ModelOption[] {
 
   // Append additional model options fetched during bootstrap
   for (const opt of getGlobalConfig().additionalModelOptionsCache ?? []) {
+    // Cached discovery must not reintroduce retired ordinary MiniMax choices.
+    // Explicit custom and saved selections are added separately below/above.
+    if (
+      getAPIProvider() === 'minimax' &&
+      typeof opt.value === 'string' &&
+      /^minimax-/i.test(opt.value) &&
+      !MINIMAX_MODEL_IDS.some(model => model.toLowerCase() === opt.value?.toLowerCase())
+    ) {
+      continue
+    }
     if (!options.some(existing => existing.value === opt.value)) {
       options.push(opt)
     }

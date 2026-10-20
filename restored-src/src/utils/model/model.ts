@@ -20,6 +20,7 @@ import {
 } from '../context.js'
 import { isEnvTruthy } from '../envUtils.js'
 import { getModelStrings, resolveOverriddenModel } from './modelStrings.js'
+import { MINIMAX_MODEL_IDS } from './configs.js'
 import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
@@ -32,6 +33,13 @@ import { capitalize } from '../stringUtils.js'
 export type ModelShortName = string
 export type ModelName = string
 export type ModelSetting = ModelName | ModelAlias | null
+
+function getMiniMaxModelDisplayName(model: ModelName): string | null {
+  const normalizedModel = model.toLowerCase()
+  return (
+    MINIMAX_MODEL_IDS.find(id => id.toLowerCase() === normalizedModel) ?? null
+  )
+}
 
 export function getSmallFastModel(): ModelName {
   return process.env.ANTHROPIC_SMALL_FAST_MODEL || getDefaultHaikuModel()
@@ -347,6 +355,10 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  * if the model is not recognized as a public model.
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
+  const miniMaxModel = getMiniMaxModelDisplayName(model)
+  if (miniMaxModel) {
+    return miniMaxModel
+  }
   switch (model) {
     case getModelStrings().opus46:
       return 'Opus 4.6'
@@ -416,13 +428,14 @@ export function renderModelName(model: ModelName): string {
 
 /**
  * Returns a safe author name for public display (e.g., in git commit trailers).
- * Returns "Claude {ModelName}" for publicly known models, or "Claude ({model})"
- * for unknown/internal models so the exact model name is preserved.
- *
- * @param model The full model name
- * @returns "Claude {ModelName}" for public models, or "Claude ({model})" for non-public models
+ * Known external model IDs are returned unchanged. Other public models use the
+ * CLI author prefix, while unknown models preserve their exact identifier.
  */
 export function getPublicModelName(model: ModelName): string {
+  const miniMaxModel = getMiniMaxModelDisplayName(model)
+  if (miniMaxModel) {
+    return miniMaxModel
+  }
   const publicName = getPublicModelDisplayName(model)
   if (publicName) {
     return `Claude ${publicName}`
@@ -568,6 +581,10 @@ export function modelDisplayString(model: ModelSetting): string {
 
 // @[MODEL LAUNCH]: Add a marketing name mapping for the new model below.
 export function getMarketingNameForModel(modelId: string): string | undefined {
+  const miniMaxModel = getMiniMaxModelDisplayName(modelId)
+  if (miniMaxModel) {
+    return miniMaxModel
+  }
   if (getAPIProvider() === 'foundry') {
     // deployment ID is user-defined in Foundry, so it may have no relation to the actual model
     return undefined
