@@ -8,6 +8,21 @@ import { getModelCapability } from './model/modelCapabilities.js'
 // Model context window size (200k tokens for all models right now)
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
 
+// MiniMax models expose their own context windows, which differ from the
+// default window used above.
+const MINIMAX_MODEL_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
+  'minimax-m3.1-flash': 1_000_000,
+  'minimax-m3': 1_000_000,
+  'minimax-m2.7': 204_800,
+}
+
+function getMiniMaxContextWindow(model: string): number | null {
+  // Match direct IDs exactly; custom deployments containing a model name may
+  // have a different context limit. Preserve the explicit [1m] suffix handling.
+  const canonical = model.toLowerCase().replace(/\[1m\]$/, '')
+  return MINIMAX_MODEL_CONTEXT_WINDOWS[canonical] ?? null
+}
+
 // Maximum output tokens for compact operations
 export const COMPACT_MAX_OUTPUT_TOKENS = 20_000
 
@@ -45,7 +60,11 @@ export function modelSupports1M(model: string): boolean {
     return false
   }
   const canonical = getCanonicalName(model)
-  return canonical.includes('claude-sonnet-4') || canonical.includes('opus-4-6')
+  return (
+    canonical.includes('claude-sonnet-4') ||
+    canonical.includes('opus-4-6') ||
+    getMiniMaxContextWindow(model) === 1_000_000
+  )
 }
 
 export function getContextWindowForModel(
@@ -69,6 +88,17 @@ export function getContextWindowForModel(
   // [1m] suffix — explicit client-side opt-in, respected over all detection
   if (has1mContext(model)) {
     return 1_000_000
+  }
+
+  const miniMaxWindow = getMiniMaxContextWindow(model)
+  if (miniMaxWindow !== null) {
+    if (
+      miniMaxWindow > MODEL_CONTEXT_WINDOW_DEFAULT &&
+      is1mContextDisabled()
+    ) {
+      return MODEL_CONTEXT_WINDOW_DEFAULT
+    }
+    return miniMaxWindow
   }
 
   const cap = getModelCapability(model)
@@ -150,6 +180,11 @@ export function getModelMaxOutputTokens(model: string): {
   default: number
   upperLimit: number
 } {
+  // Keep the conservative request default while allowing Flash's full limit.
+  if (model.toLowerCase().replace(/\[1m\]$/, '') === 'minimax-m3.1-flash') {
+    return { default: MAX_OUTPUT_TOKENS_DEFAULT, upperLimit: 524_288 }
+  }
+
   let defaultTokens: number
   let upperLimit: number
 
